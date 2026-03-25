@@ -10,15 +10,22 @@ from inspirepy.sequence import ActionSequence
 def make_hand(MockProtocol, MockSerial):
     proto_instance = MockProtocol.return_value
     serial_instance = MockSerial.return_value
-    # factory_reset writes to RESET_PARA
     hand = InspireHand("/dev/ttyUSB0")
-    proto_instance.write_byte.assert_called_with(1, 1006, 1)
     return hand, proto_instance
 
 
-def test_init_factory_resets():
+def test_init_no_factory_reset_by_default():
     hand, proto = make_hand()
-    proto.write_byte.assert_called_with(1, 1006, 1)
+    # Should NOT call factory reset by default
+    for c in proto.write_byte.call_args_list:
+        assert c != call(1, 1006, 1)
+
+
+def test_init_factory_reset_when_requested():
+    with patch("inspirepy.hand.serial.Serial"), patch("inspirepy.hand.Protocol") as MockProtocol:
+        proto = MockProtocol.return_value
+        hand = InspireHand("/dev/ttyUSB0", factory_reset=True)
+        proto.write_byte.assert_any_call(1, 1006, 1)
 
 
 def test_finger_attributes_exist():

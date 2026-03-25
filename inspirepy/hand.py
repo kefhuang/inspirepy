@@ -12,7 +12,8 @@ from inspirepy.sequence import ActionSequence
 
 
 class InspireHand:
-    def __init__(self, port: str, baudrate: int = 115200, hand_id: int = 1):
+    def __init__(self, port: str, baudrate: int = 115200, hand_id: int = 1,
+                 factory_reset: bool = False):
         self._hand_id = hand_id
         self._serial = serial.Serial(
             port=port,
@@ -36,7 +37,8 @@ class InspireHand:
             self.index, self.thumb_bend, self.thumb_rotation,
         ]
 
-        self._protocol.write_byte(self._hand_id, REGISTERS["RESET_PARA"].address, 1)
+        if factory_reset:
+            self._protocol.write_byte(self._hand_id, REGISTERS["RESET_PARA"].address, 1)
 
     def close(self):
         self._serial.close()
