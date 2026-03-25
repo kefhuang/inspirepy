@@ -122,7 +122,13 @@ class InspireHand:
         raw = self._protocol.read_bytes(
             self._hand_id, REGISTERS["STATUS"].address, NUM_DOFS
         )
-        return [Status(v) for v in raw]
+        results = []
+        for v in raw:
+            try:
+                results.append(Status(v))
+            except ValueError:
+                results.append(v)
+        return results
 
     def get_errors(self) -> list:
         raw = self._protocol.read_bytes(

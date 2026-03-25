@@ -61,9 +61,12 @@ class Finger:
         return self._protocol.read_bytes(self._hand_id, self._byte_addr("TEMP"), 1)[0]
 
     @property
-    def status(self) -> Status:
+    def status(self):
         raw = self._protocol.read_bytes(self._hand_id, self._byte_addr("STATUS"), 1)[0]
-        return Status(raw)
+        try:
+            return Status(raw)
+        except ValueError:
+            return raw
 
     @property
     def error(self) -> dict:
