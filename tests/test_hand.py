@@ -2,6 +2,7 @@ import struct
 from unittest.mock import MagicMock, patch, call
 from inspirepy.hand import InspireHand
 from inspirepy.constants import FINGER_NAMES, JOINT_LIMITS
+from inspirepy.sequence import ActionSequence
 
 
 @patch("inspirepy.hand.serial.Serial")
@@ -177,3 +178,28 @@ def test_context_manager():
         with InspireHand("/dev/ttyUSB0") as hand:
             assert hand is not None
         MockSerial.return_value.close.assert_called_once()
+
+
+def test_create_sequence():
+    hand, proto = make_hand()
+    seq = hand.create_sequence(slot=0)
+    assert isinstance(seq, ActionSequence)
+
+
+def test_load_sequence(tmp_path):
+    hand, proto = make_hand()
+    import yaml
+    data = {
+        "steps": [
+            {
+                "angles": {"little": 0, "ring": 0, "middle": 0, "index": 0, "thumb_bend": 0, "thumb_rotation": 0},
+                "speed": 500, "force_limit": 300, "duration": 500,
+            },
+        ]
+    }
+    path = tmp_path / "seq.yaml"
+    with open(path, "w") as f:
+        yaml.dump(data, f)
+    seq = hand.load_sequence(str(path), slot=0)
+    assert isinstance(seq, ActionSequence)
+    assert len(seq._steps) == 1

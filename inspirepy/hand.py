@@ -8,6 +8,7 @@ from inspirepy.constants import (
 from inspirepy.registers import REGISTERS
 from inspirepy.protocol import Protocol
 from inspirepy.finger import Finger
+from inspirepy.sequence import ActionSequence
 
 
 class InspireHand:
@@ -222,3 +223,9 @@ class InspireHand:
             self._protocol.write_shorts(
                 self._hand_id, REGISTERS["CURRENT_LIMIT"].address, from_named_dict(config["current_limits"])
             )
+
+    def create_sequence(self, slot: int = 0) -> ActionSequence:
+        return ActionSequence(protocol=self._protocol, hand_id=self._hand_id, slot=slot)
+
+    def load_sequence(self, path: str, slot: int = 0) -> ActionSequence:
+        return ActionSequence.load(path, protocol=self._protocol, hand_id=self._hand_id, slot=slot)
