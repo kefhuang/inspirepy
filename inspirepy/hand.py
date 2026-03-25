@@ -164,3 +164,61 @@ class InspireHand:
             self._hand_id, REGISTERS["REDU_RATIO"].address, code
         )
         self._serial.baudrate = baudrate
+
+    def save_config(self, path: str):
+        import yaml
+        speeds = self._protocol.read_shorts(self._hand_id, REGISTERS["DEFAULT_SPEED_SET"].address, NUM_DOFS)
+        force_limits = self._protocol.read_shorts(self._hand_id, REGISTERS["DEFAULT_FORCE_SET"].address, NUM_DOFS)
+        current_limits = self._protocol.read_shorts(self._hand_id, REGISTERS["CURRENT_LIMIT"].address, NUM_DOFS)
+        hand_id = self._protocol.read_bytes(self._hand_id, REGISTERS["HAND_ID"].address, 1)[0]
+        baud_code = self._protocol.read_bytes(self._hand_id, REGISTERS["REDU_RATIO"].address, 1)[0]
+
+        def to_named_dict(values):
+            return {name: val for name, val in zip(FINGER_NAMES, values)}
+
+        config = {
+            "hand_id": hand_id,
+            "baudrate": BAUD_RATE_VALUES.get(baud_code, 115200),
+            "default_speeds": to_named_dict(speeds),
+            "default_force_limits": to_named_dict(force_limits),
+            "current_limits": to_named_dict(current_limits),
+        }
+        with open(path, "w") as f:
+            yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+
+    def load_config(self, path: str):
+        import yaml
+
+        with open(path) as f:
+            config = yaml.safe_load(f)
+
+        def from_named_dict(d):
+            return [d[name] for name in FINGER_NAMES]
+
+        if "hand_id" in config:
+            new_id = config["hand_id"]
+            self._protocol.write_byte(self._hand_id, REGISTERS["HAND_ID"].address, new_id)
+            self._hand_id = new_id
+            for finger in self._fingers:
+                finger._hand_id = new_id
+
+        if "baudrate" in config:
+            baudrate = config["baudrate"]
+            if baudrate in BAUD_RATE_LOOKUP:
+                self._protocol.write_byte(
+                    self._hand_id, REGISTERS["REDU_RATIO"].address, BAUD_RATE_LOOKUP[baudrate]
+                )
+                self._serial.baudrate = baudrate
+
+        if "default_speeds" in config:
+            self._protocol.write_shorts(
+                self._hand_id, REGISTERS["DEFAULT_SPEED_SET"].address, from_named_dict(config["default_speeds"])
+            )
+        if "default_force_limits" in config:
+            self._protocol.write_shorts(
+                self._hand_id, REGISTERS["DEFAULT_FORCE_SET"].address, from_named_dict(config["default_force_limits"])
+            )
+        if "current_limits" in config:
+            self._protocol.write_shorts(
+                self._hand_id, REGISTERS["CURRENT_LIMIT"].address, from_named_dict(config["current_limits"])
+            )
