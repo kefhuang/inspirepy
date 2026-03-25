@@ -40,6 +40,20 @@ class InspireHand:
         if factory_reset:
             self._protocol.write_byte(self._hand_id, REGISTERS["RESET_PARA"].address, 1)
 
+        # Read current state from the hand
+        self._default_speeds = self._protocol.read_shorts(
+            self._hand_id, REGISTERS["DEFAULT_SPEED_SET"].address, NUM_DOFS
+        )
+        self._default_force_limits = self._protocol.read_shorts(
+            self._hand_id, REGISTERS["DEFAULT_FORCE_SET"].address, NUM_DOFS
+        )
+        self._current_limits = self._protocol.read_shorts(
+            self._hand_id, REGISTERS["CURRENT_LIMIT"].address, NUM_DOFS
+        )
+        self._angles = self._protocol.read_shorts(
+            self._hand_id, REGISTERS["ANGLE_ACT"].address, NUM_DOFS
+        )
+
     def close(self):
         self._serial.close()
 

@@ -10,7 +10,20 @@ from inspirepy.sequence import ActionSequence
 def make_hand(MockProtocol, MockSerial):
     proto_instance = MockProtocol.return_value
     serial_instance = MockSerial.return_value
+    # Init reads 4 register groups: default_speeds, default_force_limits, current_limits, angles
+    proto_instance.read_shorts.side_effect = [
+        [500, 500, 500, 500, 500, 500],   # DEFAULT_SPEED_SET
+        [300, 300, 300, 300, 300, 300],   # DEFAULT_FORCE_SET
+        [1500, 1500, 1500, 1500, 1500, 1500],  # CURRENT_LIMIT
+        [0, 0, 0, 0, 0, 0],              # ANGLE_ACT
+    ]
     hand = InspireHand("/dev/ttyUSB0")
+    # Reset side_effect so tests can set their own
+    proto_instance.read_shorts.side_effect = None
+    proto_instance.read_shorts.reset_mock()
+    proto_instance.read_bytes.reset_mock()
+    proto_instance.write_shorts.reset_mock()
+    proto_instance.write_byte.reset_mock()
     return hand, proto_instance
 
 
@@ -24,8 +37,19 @@ def test_init_no_factory_reset_by_default():
 def test_init_factory_reset_when_requested():
     with patch("inspirepy.hand.serial.Serial"), patch("inspirepy.hand.Protocol") as MockProtocol:
         proto = MockProtocol.return_value
+        proto.read_shorts.side_effect = [
+            [500]*6, [300]*6, [1500]*6, [0]*6,
+        ]
         hand = InspireHand("/dev/ttyUSB0", factory_reset=True)
         proto.write_byte.assert_any_call(1, 1006, 1)
+
+
+def test_init_reads_current_state():
+    hand, proto = make_hand()
+    assert hand._default_speeds == [500, 500, 500, 500, 500, 500]
+    assert hand._default_force_limits == [300, 300, 300, 300, 300, 300]
+    assert hand._current_limits == [1500, 1500, 1500, 1500, 1500, 1500]
+    assert hand._angles == [0, 0, 0, 0, 0, 0]
 
 
 def test_finger_attributes_exist():
@@ -182,7 +206,10 @@ def test_set_baudrate():
 
 def test_context_manager():
     with patch("inspirepy.hand.serial.Serial") as MockSerial, \
-         patch("inspirepy.hand.Protocol"):
+         patch("inspirepy.hand.Protocol") as MockProtocol:
+        MockProtocol.return_value.read_shorts.side_effect = [
+            [500]*6, [300]*6, [1500]*6, [0]*6,
+        ]
         with InspireHand("/dev/ttyUSB0") as hand:
             assert hand is not None
         MockSerial.return_value.close.assert_called_once()

@@ -7,7 +7,15 @@ from inspirepy.hand import InspireHand
 @patch("inspirepy.hand.Protocol")
 def make_hand(MockProtocol, MockSerial):
     proto = MockProtocol.return_value
+    proto.read_shorts.side_effect = [
+        [500]*6, [300]*6, [1500]*6, [0]*6,
+    ]
     hand = InspireHand("/dev/ttyUSB0")
+    proto.read_shorts.side_effect = None
+    proto.read_shorts.reset_mock()
+    proto.read_bytes.reset_mock()
+    proto.write_shorts.reset_mock()
+    proto.write_byte.reset_mock()
     return hand, proto
 
 
