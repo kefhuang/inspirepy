@@ -57,24 +57,34 @@ class InspireHand:
         if speed is not None:
             if isinstance(speed, int):
                 speed = [speed] * NUM_DOFS
+            if len(speed) != NUM_DOFS:
+                raise ValueError(f"Expected {NUM_DOFS} speed values, got {len(speed)}")
             self._protocol.write_shorts(self._hand_id, REGISTERS["SPEED_SET"].address, speed)
 
         if force_limit is not None:
             if isinstance(force_limit, int):
                 force_limit = [force_limit] * NUM_DOFS
+            if len(force_limit) != NUM_DOFS:
+                raise ValueError(f"Expected {NUM_DOFS} force_limit values, got {len(force_limit)}")
             self._protocol.write_shorts(self._hand_id, REGISTERS["FORCE_SET"].address, force_limit)
 
         if delta:
             current = self._protocol.read_shorts(
                 self._hand_id, REGISTERS["ANGLE_ACT"].address, NUM_DOFS
             )
-            angles = [max(0, min(1000, c + d)) for c, d in zip(current, angles)]
+            # DOF 5 (thumb_rotation) does not support -1/no-action, so keep its value absolute
+            angles = [
+                max(0, min(1000, c + d)) if i != 5 else d
+                for i, (c, d) in enumerate(zip(current, angles))
+            ]
 
         self._protocol.write_shorts(self._hand_id, REGISTERS["ANGLE_SET"].address, angles)
 
     def set_default_speeds(self, speeds: Union[int, List[int]]):
         if isinstance(speeds, int):
             speeds = [speeds] * NUM_DOFS
+        if len(speeds) != NUM_DOFS:
+            raise ValueError(f"Expected {NUM_DOFS} speed values, got {len(speeds)}")
         self._protocol.write_shorts(
             self._hand_id, REGISTERS["DEFAULT_SPEED_SET"].address, speeds
         )
@@ -82,6 +92,8 @@ class InspireHand:
     def set_default_force_limits(self, limits: Union[int, List[int]]):
         if isinstance(limits, int):
             limits = [limits] * NUM_DOFS
+        if len(limits) != NUM_DOFS:
+            raise ValueError(f"Expected {NUM_DOFS} force_limit values, got {len(limits)}")
         self._protocol.write_shorts(
             self._hand_id, REGISTERS["DEFAULT_FORCE_SET"].address, limits
         )

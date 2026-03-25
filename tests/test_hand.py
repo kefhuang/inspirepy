@@ -59,9 +59,10 @@ def test_set_angles_with_force_limit_single():
 def test_set_angles_delta():
     hand, proto = make_hand()
     proto.read_shorts.return_value = [500, 500, 500, 500, 500, 500]
-    hand.set_angles([-100, -100, -100, -100, -100, -100], delta=True)
+    hand.set_angles([-100, -100, -100, -100, -100, 300], delta=True)
     proto.read_shorts.assert_called_with(1, 1546, 6)
-    proto.write_shorts.assert_any_call(1, 1486, [400, 400, 400, 400, 400, 400])
+    # DOF 5 (thumb_rotation) uses absolute value, others use delta
+    proto.write_shorts.assert_any_call(1, 1486, [400, 400, 400, 400, 400, 300])
 
 
 def test_get_angles():
