@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=64.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "inspirepy"
+version = "0.1.0"
+description = "Python library for the Inspire-Robots RH56 Dexterous Hand"
+requires-python = ">=3.9"
+dependencies = [
+    "pyserial>=3.5",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+]
