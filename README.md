@@ -192,5 +192,14 @@ seq = hand.load_sequence("wave.yaml")
 
 See `examples/` for runnable scripts:
 
-- `01_read_sensors.py` — read all sensor values
-- `02_move_fingers.py` — move each finger individually, then all together
+- `01_read_sensors.py` — read all sensor values in a formatted table
+- `02_move_fingers.py` — move each finger individually, make a fist
+- `03_hand_tracking.py` — mirror your hand movements via webcam (requires `pip install -e ".[demo]"`)
+
+## Scripts
+
+Utility scripts in `scripts/`:
+
+- `reset_fist.py` — reset hand to fist pose
+- `reset_open.py` — reset hand to fully open pose
+- `calibrate_force.py` — calibrate force sensors (hand must be unloaded)
