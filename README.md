@@ -195,6 +195,7 @@ See `examples/` for runnable scripts:
 - `01_read_sensors.py` — read all sensor values in a formatted table
 - `02_move_fingers.py` — move each finger individually, make a fist
 - `03_hand_tracking.py` — mirror your hand movements via webcam (requires `pip install -e ".[demo]"`)
+- `04_rock_paper_scissors.py` — play rock-paper-scissors against the robot (requires `pip install -e ".[demo]"`)
 
 ## Scripts
 
