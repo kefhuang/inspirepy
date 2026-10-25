@@ -150,16 +150,38 @@ def draw_landmarks(frame, hand_landmarks, w, h):
         cv2.circle(frame, pt, 4, (0, 0, 255), -1)
 
 
-def detect_hand(landmarker, frame):
-    """Run detection and return landmarks or None."""
+def detect_hands(landmarker, frame):
+    """Run detection and return list of hand landmarks (possibly empty)."""
     mp_image = mp.Image(
         image_format=mp.ImageFormat.SRGB,
         data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
     )
     results = landmarker.detect(mp_image)
-    if results.hand_landmarks:
-        return results.hand_landmarks[0]
-    return None
+    return results.hand_landmarks
+
+
+def bbox_area(landmarks):
+    """Bbox area in normalized image coords. Larger = closer to camera."""
+    xs = [lm.x for lm in landmarks]
+    ys = [lm.y for lm in landmarks]
+    return (max(xs) - min(xs)) * (max(ys) - min(ys))
+
+
+def select_hand(hands, last_wrist):
+    """Pick which detected hand to track.
+
+    Without a prior position, locks onto the largest bbox (closest to camera).
+    With one, picks the hand whose wrist is nearest to last_wrist.
+    """
+    if not hands:
+        return None
+    if last_wrist is None:
+        return max(hands, key=bbox_area)
+    lx, ly = last_wrist
+    return min(
+        hands,
+        key=lambda h: (h[WRIST].x - lx) ** 2 + (h[WRIST].y - ly) ** 2,
+    )
 
 
 def collect_stable(cap, landmarker, prompt, ready_fn=None, hold_frames=15):
@@ -169,6 +191,7 @@ def collect_stable(cap, landmarker, prompt, ready_fn=None, hold_frames=15):
         ready_fn: function(raw_values) -> bool. If None, always ready.
     """
     collected = []
+    last_wrist = None
 
     while True:
         ret, frame = cap.read()
@@ -177,9 +200,11 @@ def collect_stable(cap, landmarker, prompt, ready_fn=None, hold_frames=15):
         frame = cv2.flip(frame, 1)
         h, w = frame.shape[:2]
 
-        landmarks = detect_hand(landmarker, frame)
+        hands = detect_hands(landmarker, frame)
+        landmarks = select_hand(hands, last_wrist)
 
         if landmarks:
+            last_wrist = (landmarks[WRIST].x, landmarks[WRIST].y)
             draw_landmarks(frame, landmarks, w, h)
             raw = get_raw_values(landmarks)
 
@@ -228,7 +253,7 @@ def main():
     options = HandLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=MODEL_PATH),
         running_mode=RunningMode.IMAGE,
-        num_hands=1,
+        num_hands=4,
         min_hand_detection_confidence=0.7,
         min_tracking_confidence=0.5,
     )
@@ -285,6 +310,12 @@ def main():
     smoothed = [500.0] * 6
     last_sent = [500] * 6
 
+    # Multi-hand tracking state: lock onto one hand and follow it by wrist proximity.
+    # If the tracked hand disappears for too long, drop the lock and re-acquire.
+    last_wrist = None
+    lost_frames = 0
+    LOST_THRESHOLD = 15  # ~0.5s at 30fps before re-locking
+
     try:
         while True:
             ret, frame = cap.read()
@@ -294,9 +325,14 @@ def main():
             frame = cv2.flip(frame, 1)
             h, w = frame.shape[:2]
 
-            landmarks = detect_hand(landmarker, frame)
+            hands = detect_hands(landmarker, frame)
+            if lost_frames > LOST_THRESHOLD:
+                last_wrist = None
+            landmarks = select_hand(hands, last_wrist)
 
             if landmarks:
+                last_wrist = (landmarks[WRIST].x, landmarks[WRIST].y)
+                lost_frames = 0
                 draw_landmarks(frame, landmarks, w, h)
                 raw = get_raw_values(landmarks)
                 angles = mapper(raw)
@@ -319,6 +355,8 @@ def main():
                 for i, (name, angle) in enumerate(zip(names, angles)):
                     cv2.putText(frame, f"{name}: {angle:>4}", (10, 30 + i * 25),
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+            else:
+                lost_frames += 1
 
             cv2.imshow("Hand Tracking", frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):

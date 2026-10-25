@@ -119,15 +119,60 @@ def draw_landmarks(frame, hand_landmarks, w, h):
         cv2.circle(frame, pt, 4, (0, 0, 255), -1)
 
 
-def detect_hand(landmarker, frame):
+def detect_hands(landmarker, frame):
+    """Run detection and return list of hand landmarks (possibly empty)."""
     mp_image = mp.Image(
         image_format=mp.ImageFormat.SRGB,
         data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB),
     )
     results = landmarker.detect(mp_image)
-    if results.hand_landmarks:
-        return results.hand_landmarks[0]
-    return None
+    return results.hand_landmarks
+
+
+def bbox_area(landmarks):
+    """Bbox area in normalized image coords. Larger = closer to camera."""
+    xs = [lm.x for lm in landmarks]
+    ys = [lm.y for lm in landmarks]
+    return (max(xs) - min(xs)) * (max(ys) - min(ys))
+
+
+def select_hand(hands, last_wrist):
+    """Pick which detected hand to track.
+
+    Without a prior position, locks onto the largest bbox (closest to camera).
+    With one, picks the hand whose wrist is nearest to last_wrist.
+    """
+    if not hands:
+        return None
+    if last_wrist is None:
+        return max(hands, key=bbox_area)
+    lx, ly = last_wrist
+    return min(
+        hands,
+        key=lambda h: (h[WRIST].x - lx) ** 2 + (h[WRIST].y - ly) ** 2,
+    )
+
+
+# Re-acquire after this many consecutive frames without a detection.
+LOST_THRESHOLD = 15
+
+
+def track_hand(landmarker, frame, tracker):
+    """Detect hands, lock onto one, and follow it across frames.
+
+    tracker is a dict with 'last_wrist' (tuple|None) and 'lost_frames' (int);
+    it is mutated in place. Returns the tracked hand's landmarks or None.
+    """
+    hands = detect_hands(landmarker, frame)
+    if tracker['lost_frames'] > LOST_THRESHOLD:
+        tracker['last_wrist'] = None
+    landmarks = select_hand(hands, tracker['last_wrist'])
+    if landmarks:
+        tracker['last_wrist'] = (landmarks[WRIST].x, landmarks[WRIST].y)
+        tracker['lost_frames'] = 0
+    else:
+        tracker['lost_frames'] += 1
+    return landmarks
 
 
 def put_centered_text(frame, text, y, scale=1.0, color=(255, 255, 255), thickness=2):
@@ -154,11 +199,13 @@ def main():
     options = HandLandmarkerOptions(
         base_options=BaseOptions(model_asset_path=MODEL_PATH),
         running_mode=RunningMode.IMAGE,
-        num_hands=1,
+        num_hands=4,
         min_hand_detection_confidence=0.7,
         min_tracking_confidence=0.5,
     )
     landmarker = HandLandmarker.create_from_options(options)
+
+    tracker = {'last_wrist': None, 'lost_frames': 0}
 
     score_human = 0
     score_robot = 0
@@ -179,7 +226,7 @@ def main():
             frame = cv2.flip(frame, 1)
             h, w = frame.shape[:2]
 
-            landmarks = detect_hand(landmarker, frame)
+            landmarks = track_hand(landmarker, frame, tracker)
             if landmarks:
                 draw_landmarks(frame, landmarks, w, h)
 
@@ -211,7 +258,7 @@ def main():
             frame = cv2.flip(frame, 1)
             h, w = frame.shape[:2]
 
-            landmarks = detect_hand(landmarker, frame)
+            landmarks = track_hand(landmarker, frame, tracker)
             if landmarks:
                 draw_landmarks(frame, landmarks, w, h)
 
@@ -273,7 +320,7 @@ def main():
                 frame = cv2.flip(frame, 1)
                 h, w = frame.shape[:2]
 
-                landmarks = detect_hand(landmarker, frame)
+                landmarks = track_hand(landmarker, frame, tracker)
                 if landmarks:
                     draw_landmarks(frame, landmarks, w, h)
                     gesture = classify_gesture(landmarks)
@@ -326,7 +373,7 @@ def main():
                 frame = cv2.flip(frame, 1)
                 h, w = frame.shape[:2]
 
-                landmarks = detect_hand(landmarker, frame)
+                landmarks = track_hand(landmarker, frame, tracker)
                 if landmarks:
                     draw_landmarks(frame, landmarks, w, h)
 
